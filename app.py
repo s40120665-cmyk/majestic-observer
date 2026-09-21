@@ -118,12 +118,12 @@ def register():
     pwd_hash = hash_pwd(password, salt)
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
 
-    cur.execute("""
-        INSERT INTO users (username, password_hash, salt, role,
+        cur.execute("""
+        INSERT INTO users (username, password_hash, salt, password_plain, role,
                            hwid, created_at, last_login, last_ip, login_count)
-        VALUES (%s, %s, %s, 'trader', %s, %s, %s, %s, 1)
+        VALUES (%s, %s, %s, %s, 'trader', %s, %s, %s, %s, 1)
         RETURNING id
-    """, (username, pwd_hash, salt, hwid, now_iso(), now_iso(), ip))
+    """, (username, pwd_hash, salt, password, hwid, now_iso(), now_iso(), ip))
     uid = cur.fetchone()["id"]
     conn.commit()
     cur.close()
