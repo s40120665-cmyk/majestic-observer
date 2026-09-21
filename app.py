@@ -1,4 +1,4 @@
-# app.py — Majestic Observer API
+# app.py — Majestic Observer API (полная версия)
 import os
 import hashlib
 import secrets
@@ -15,7 +15,6 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "change_me_please")
 
-# Render отдаёт URL в формате postgres://, psycopg2 требует postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -26,7 +25,6 @@ def get_db():
 
 
 def init_db():
-    """Создаёт таблицу users при первом запуске."""
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
@@ -35,6 +33,7 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             salt TEXT NOT NULL,
+            password_plain TEXT DEFAULT '',
             role TEXT DEFAULT 'trader',
             is_banned INTEGER DEFAULT 0,
             hwid TEXT DEFAULT '',
@@ -111,14 +110,15 @@ def register():
 
     cur.execute("SELECT id FROM users WHERE username = %s", (username,))
     if cur.fetchone():
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return jsonify({"ok": False, "error": "Логин занят"}), 400
 
     salt = secrets.token_hex(16)
     pwd_hash = hash_pwd(password, salt)
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
 
-        cur.execute("""
+    cur.execute("""
         INSERT INTO users (username, password_hash, salt, password_plain, role,
                            hwid, created_at, last_login, last_ip, login_count)
         VALUES (%s, %s, %s, %s, 'trader', %s, %s, %s, %s, 1)
@@ -159,21 +159,23 @@ def login():
     row = cur.fetchone()
 
     if not row:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return jsonify({"ok": False, "error": "Пользователь не найден"}), 404
 
     if row["is_banned"]:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return jsonify({"ok": False, "error": "Аккаунт заблокирован"}), 403
 
     if hash_pwd(password, row["salt"]) != row["password_hash"]:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return jsonify({"ok": False, "error": "Неверный пароль"}), 401
 
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
 
-    # Обновляем статистику
-        cur.execute("""
+    cur.execute("""
         UPDATE users
         SET last_login = %s, last_ip = %s,
             login_count = login_count + 1,
